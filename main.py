@@ -4,7 +4,7 @@ import sys
 import os
 import shutil
 import re
-import copy
+# import copy
 
 
 class Gpx:
@@ -23,11 +23,16 @@ class Gpx:
         return
 
     def __del__(self) -> None:
-        if (not self.__saved):
-            dist_name: str = input('Enter file name to save editted `' + self.source_filename + '` (or nothing to discard): ')
-            if (dist_name != ''):
-                os.rename(self.__buf_filename, dist_name)
-        os.remove(self.__buf_filename)
+
+        if os.path.exists(self.__fun_buf_filename):
+            if (not self.__saved):
+                dist_name: str = input('Enter file name to save editted `' + self.source_filename + '` (or nothing to discard): ')
+                if (dist_name != ''):
+                    os.rename(self.__buf_filename, dist_name)
+            else:
+                os.remove(self.__fun_buf_filename)
+        if os.path.exists(self.__buf_filename):
+            os.remove(self.__buf_filename)
         return
 
     def __init_fun_buf(self) -> None:
@@ -46,7 +51,7 @@ class Gpx:
         return
 
     def __refresh_buf(self) -> None:
-        os.rename(self.__buf_filename, self.__fun_buf_filename)
+        os.rename(self.__fun_buf_filename, self.__buf_filename)
         return
 
     def save(self, dist_filename: str) -> None:
@@ -54,11 +59,11 @@ class Gpx:
         self.__saved = True
         return
 
-    def save_with_suffix(self, suffix: str):
+    def save_with_suffix(self, suffix: str) -> str:
         source_filename_without_ext = os.path.splitext(self.source_filename)[0]
         dist_filename: str = source_filename_without_ext + suffix + '.gpx'
         self.save(dist_filename)
-        return
+        return dist_filename
 
     def trim_extention(self):
         initializer: str = '<extensions>'
@@ -118,12 +123,14 @@ class Gpx:
         return
 
     @classmethod
-    def join(cls, filenames: list[str], dist_filename: str) -> None:
+    def join(cls, filenames: list[str], dist_filename: str, title: str = '') -> None:
         initial = filenames[0]
         final = filenames[-1]
 
         with open(initial, 'r') as fr:
             lines = fr.readlines()
+            if title != '':
+                lines[6] = '  <name>' + title + '</name>\n'
             with open(dist_filename, 'w') as fw:
                 fw.writelines(lines[:-4])
 
@@ -143,12 +150,30 @@ class Gpx:
 # end class Gpx
 
 
+def join_gpx_in_a_dir(dirname: str, title: str) -> None:
+    filenames: list[str] = []
+    for filename in os.listdir(dirname):
+        if filename.endswith('.gpx'):
+            filenames.append(dirname + filename)
+    filenames.sort()
+    trimmed_filenames: list[str] = []
+    for filename in filenames:
+        gpx = Gpx(filename)
+        gpx.trim_extention()
+        trimmed_filenames.append(gpx.save_with_suffix('_trimmed'))
+    Gpx.join(trimmed_filenames, dirname+title+'.gpx', title)
+    return
+
+
 if __name__ == '__main__':
     args = sys.argv
-    filename = args[1]
-    gpx = Gpx(filename)
-    gpx.fix_ele()
-    gpx.save_with_suffix('_fixed')
-    # dist_filename = dirname + '/' + dirname + '_joined.gpx'
-    # source_filenames = [dirname + '/' + filename for filename in os.listdir(dirname) if filename.endswith('.gpx')]
-    # source_filenames.sort()
+    mode = args[1]
+    if mode == 'join':
+        dirname = args[2]
+        title = args[3]
+        join_gpx_in_a_dir(dirname, title)
+    elif mode == 'trim':
+        filename = args[2]
+        gpx = Gpx(filename)
+        gpx.trim_extention()
+        gpx.save_with_suffix('_trimmed')
